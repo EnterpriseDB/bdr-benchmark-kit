@@ -1,0 +1,7 @@
+echo "Setting SSH Keys"
+ssh-add {{ vars['ssh_priv_key'] }}
+echo "Adding IPs"
+{% for name, spec in servers.items() %}
+ssh-keyscan -H {{ spec['public_ip'] }} >> ./tpa_known_hosts
+ssh-keygen -f ./tpa_known_hosts -R {{ spec['public_dns'] }}
+{% endfor %}

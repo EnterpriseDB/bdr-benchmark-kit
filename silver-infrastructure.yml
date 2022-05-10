@@ -1,0 +1,124 @@
+cluster_name: BDR-Silver-Benchmark
+ssh_user: rocky
+regions:
+  us-east-1:
+    ami_id: ami-02628ddf3745c6dda
+    cidr_block: 10.0.0.0/16
+    azs:
+      us-east-1b: 10.0.0.0/24
+      us-east-1c: 10.0.1.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 5432
+        protocol: tcp
+        description: "PostgreSQL"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 30000
+        protocol: tcp
+        description: "DBT-2"
+      - port: 30000
+        protocol: udp
+        description: "DBT-2"
+      - port: 6432
+        protocol: tcp
+        description: "PgBouncer / Harp-proxy"
+      - port: 5442
+        protocol: tcp
+        description: "Harp"
+      - port: 2379
+        protocol: tcp
+        description: "etcd"
+      - port: 2380
+        protocol: tcp
+        description: "etcd"
+machines:
+  bdr1:
+    type: bdr
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5d.metal
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  bdr2:
+    type: bdr
+    region: us-east-1
+    az: us-east-1c
+    instance_type: c5d.metal
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  bdr3:
+    type: bdr
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5d.metal
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  proxy1:
+    type: harp-proxy
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  proxy2:
+    type: harp-proxy
+    region: us-east-1
+    az: us-east-1c
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  barman1:
+    type: barman
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+    additional_volumes:
+      - mount_point: /var/lib/barman
+        size_gb: 3000
+        type: io2
+        iops: 20000
+        encrypted: false
+  dbt2-client:
+    type: dbt2-client
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  dbt2-driver:
+    type: dbt2-driver
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false

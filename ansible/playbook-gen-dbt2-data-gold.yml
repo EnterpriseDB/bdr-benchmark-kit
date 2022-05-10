@@ -1,0 +1,349 @@
+---
+- hosts: primary, witness
+  name: Generate DBT2 data on the BDR cluster
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Stop harp-manager on all nodes
+      ansible.builtin.systemd:
+        name: harp-manager
+        state: stopped
+      become: true
+      when: inventory_hostname != 'witness1'
+
+    - name: Make sure Postgres is started
+      ansible.builtin.systemd:
+        name: postgres
+        state: started
+      become: true
+
+    - name: Remove BDR nodes
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.part_node(node_name := '{{ item }}')
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+      loop:
+        - bdr2
+        - bdr3
+        - bdr4
+        - witness1
+
+    - name: Cleanup replication origin
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT pg_replication_origin_drop('bdr_local_only_origin')
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+    - name: DROP bdr extension
+      community.postgresql.postgresql_query:
+        query: >-
+          DROP EXTENSION bdr CASCADE
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname in ['bdr1', 'witness1']
+
+    - name: "DROP {{ bdr_dbname }} database"
+      community.postgresql.postgresql_db:
+        maintenance_db: postgres
+        state: absent
+        name: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        force: true
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname in ['bdr1', 'witness1']
+
+    - name: Restart Postgres
+      ansible.builtin.systemd:
+        name: postgres
+        state: restarted
+      become: true
+      when: inventory_hostname in ['bdr1', 'witness1']
+
+    - name: Stop Postgres on bdr2, bdr3 and bdr4
+      ansible.builtin.systemd:
+        name: postgres
+        state: stopped
+      become: true
+      when: inventory_hostname in ['bdr2', 'bdr3', 'bdr4']
+
+    - name: Wait for port 5444
+      ansible.builtin.wait_for:
+        host: 0.0.0.0
+        port: 5444
+        state: started
+      when: inventory_hostname == 'bdr1'
+
+    - name: Copy the dbt2-pgsql-build-db script
+      ansible.builtin.copy:
+        src: scripts/dbt2-pgsql-build-db
+        dest: /home/dbt2/dbt2-pgsql-build-db
+        mode: '0755'
+        owner: dbt2
+        force: true
+      when: inventory_hostname == 'bdr1'
+      become: true
+
+    - name: Generate DBT-2 database
+      ansible.builtin.shell: |
+         export DBT2DBNAME={{ bdr_dbname }}
+         export PGHOST={{ pg_login_unix_socket }}
+         /home/dbt2/dbt2-pgsql-build-db -l 5444 -w {{ dbt2_warehouse }} -s plpgsql -j 6 -u > /tmp/dbt2-build-db.log \
+                2>> /tmp/dbt2-build-db.log && exit || exit 0
+      become_user: dbt2
+      when: inventory_hostname == 'bdr1'
+      async: 180000
+      poll: 60
+
+    - name: "CREATE {{ bdr_dbname }} database on witness1"
+      community.postgresql.postgresql_db:
+        maintenance_db: postgres
+        state: present
+        name: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        force: true
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'witness1'
+
+    - name: Create bdr extension
+      community.postgresql.postgresql_ext:
+        name: bdr
+        state: present
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname in ['bdr1', 'witness1']
+
+      # bdr1
+      # SELECT bdr.create_node('bdr1', 'host=bdr1 dbname=bdrdb port=5444 user=enterprisedb');
+      # SELECT bdr.create_node_group('bdrdb_group');
+    - name: Create BDR node on bdr1
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.create_node('bdr1', 'host=bdr1 dbname={{ bdr_dbname }} port=5444 user={{ postgres_user }}');
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+    - name: Create BDR node on witness1
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.create_node('witness1', 'host=witness1 dbname={{ bdr_dbname }} port=5444 user={{ postgres_user }}');
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'witness1'
+
+    - name: Update witness1 replication set subscription
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.alter_node_replication_sets('witness1', '{witness-only}');
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'witness1'
+
+      # SELECT bdr.create_node_group('bdrdb_group');
+    - name: Create BDR group on bdr1
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.create_node_group('bdrdb_group');
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+    - name: Create witness-only replication set on bdr1
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.create_replication_set('witness-only', replicate_insert := false, replicate_update := false, replicate_delete := false, replicate_truncate := false, autoadd_tables := false);
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+    - name: Update bdr1 replication set subscription
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.alter_node_replication_sets('bdr1', '{bdrdb_group, witness-only}');
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+    - name: Join witness1
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.join_node_group('host=bdr1 port=5444 dbname=edb', node_group_name := 'bdrdb_group', synchronize_structure := 'none')
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'witness1'
+
+      # CHECKPOINT;
+    - name: Issuing CHECKPOINT on bdr1
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
+      # bdr2, bdr3 & bdr4
+      # rm -rf /pgdata/*
+      # rm -rf /pgwal/*
+      # mkdir /pgwal/pg_wal
+      # chown enterprisedb.enterprisedb /pgwal/pg_wal/
+      # chmod enterprisedb.enterprisedb /pgdata
+    - name: Cleaning up Postgres file systems
+      ansible.builtin.shell: |
+        rm -rf /pgdata/*
+        rm -rf /pgwal/*
+        mkdir /pgwal/pg_wal
+        chown enterprisedb.enterprisedb /pgwal/pg_wal/
+        # Required by bdr_init_physical
+        chown enterprisedb.enterprisedb /pgdata
+      become: true
+      when: inventory_hostname in ['bdr2', 'bdr3', 'bdr4']
+
+      # bdr2
+      # su enterprisedb
+      # /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data -l /tmp/bdr_init_physical.log -n bdr2 --node-group-name bdrdb_group -d 'host=bdr1 port=5444 dbname=bdrdb' --local-dsn 'host=bdr2 port=5444 dbname=bdrdb'
+    - name: Building bdr2 with bdr_init_physical
+      ansible.builtin.shell: |
+        /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data \
+                -l /tmp/bdr_init_physical.log \
+                -n bdr2 \
+                --node-group-name bdrdb_group \
+                -d 'host=bdr1 port=5444 dbname={{ bdr_dbname }}' \
+                --local-dsn 'host=bdr2 port=5444 dbname={{ bdr_dbname }}'
+      when: inventory_hostname == 'bdr2'
+      become_user: "{{ postgres_user }}"
+      async: 180000
+      poll: 60
+
+      # bdr3
+      # su enterprisedb
+      # /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data -l /tmp/bdr_init_physical.log -n bdr3 --node-group-name bdrdb_group -d 'host=bdr1 port=5444 dbname=bdrdb' --local-dsn 'host=bdr3 port=5444 dbname=bdrdb'
+    - name: Building bdr3 with bdr_init_physical
+      ansible.builtin.shell: |
+        /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data \
+                -l /tmp/bdr_init_physical.log \
+                -n bdr3 \
+                --node-group-name bdrdb_group \
+                -d 'host=bdr1 port=5444 dbname={{ bdr_dbname }}' \
+                --local-dsn 'host=bdr3 port=5444 dbname={{ bdr_dbname }}'
+      when: inventory_hostname == 'bdr3'
+      become_user: "{{ postgres_user }}"
+      async: 180000
+      poll: 60
+
+      # bdr4
+      # su enterprisedb
+      # /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data -l \
+      # /tmp/bdr_init_physical.log -n bdr4 --node-group-name bdrdb_group -d \
+      # 'host=bdr1 port=5444 dbname=bdrdb' --local-dsn 'host=bdr4 port=5444 dbname=bdrdb'
+    - name: Building bdr4 with bdr_init_physical
+      ansible.builtin.shell: |
+        /usr/edb/as14/bin/bdr_init_physical -D /pgdata/pg_data \
+                -l /tmp/bdr_init_physical.log \
+                -n bdr4 \
+                --node-group-name bdrdb_group \
+                -d 'host=bdr1 port=5444 dbname={{ bdr_dbname }}' \
+                --local-dsn 'host=bdr4 port=5444 dbname={{ bdr_dbname }}'
+      when: inventory_hostname == 'bdr4'
+      become_user: "{{ postgres_user }}"
+      async: 180000
+      poll: 60
+
+      # bdr2, bdr3 and bdr4
+      # sudo -u enterprisedb /usr/edb/as14/bin/pg_ctl -D /pgdata/pg_data stop
+    - name: Stop Postgres on bdr2, bdr3 and bdr4
+      ansible.builtin.shell: |
+        /usr/edb/as14/bin/pg_ctl -D /pgdata/pg_data stop
+      when: inventory_hostname in ['bdr2', 'bdr3', 'bdr4']
+      become_user: "{{ postgres_user }}"
+
+      # rm -rf /pgwal/pg_wal/*
+      # rsync -cavr /pgdata/pg_data/pg_wal/* /pgwal/pg_wal/.
+      # rm -rf /pgdata/pg_data/pg_wal/
+      # ln -s /pgwal/pg_wal /pgdata/pg_data/pg_wal
+    - name: Updating PGWAL location
+      ansible.builtin.shell: |
+        rm -rf /pgwal/pg_wal/*
+        rsync -cavr /pgdata/pg_data/pg_wal/* /pgwal/pg_wal/.
+        rm -rf /pgdata/pg_data/pg_wal/
+        ln -s /pgwal/pg_wal /pgdata/pg_data/pg_wal
+      become: true
+      when: inventory_hostname in ['bdr2', 'bdr3', 'bdr4']
+
+      # systemctl start postgres
+    - name: Starting Postgres on bdr2, bdr3 and bdr4
+      ansible.builtin.systemd:
+        name: postgres
+        state: started
+      become: true
+      when: inventory_hostname in ['bdr2', 'bdr3', 'bdr4']
+
+      # all nodes
+      # systemctl start harp-manager
+    - name: Starting harp-manager on all BDR nodes
+      ansible.builtin.systemd:
+        name: harp-manager
+        state: started
+      become: true
+      when: inventory_hostname != 'witness1'

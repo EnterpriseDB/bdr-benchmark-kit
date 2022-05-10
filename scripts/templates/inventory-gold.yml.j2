@@ -1,0 +1,54 @@
+---
+all:
+  children:
+    dbt2_client:
+      hosts:
+        dbt2-client:
+          ansible_host: {{ servers['dbt2-client']['public_ip'] }}
+          private_ip: {{ servers['dbt2-client']['private_ip'] }}
+    dbt2_driver:
+      hosts:
+        dbt2-driver:
+          ansible_host: {{ servers['dbt2-driver']['public_ip'] }}
+          private_ip: {{ servers['dbt2-driver']['private_ip'] }}
+    pgbouncer:
+      hosts:
+        proxy1:
+          ansible_host: {{ servers['proxy1']['public_ip'] }}
+          private_ip: {{ servers['proxy1']['private_ip'] }}
+        proxy2:
+          ansible_host: {{ servers['proxy2']['public_ip'] }}
+          private_ip: {{ servers['proxy2']['private_ip'] }}
+        proxy3:
+          ansible_host: {{ servers['proxy3']['public_ip'] }}
+          private_ip: {{ servers['proxy3']['private_ip'] }}
+        proxy4:
+          ansible_host: {{ servers['proxy4']['public_ip'] }}
+          private_ip: {{ servers['proxy4']['private_ip'] }}
+    primary:
+      hosts:
+        bdr1:
+          ansible_host: {{ servers['bdr1']['public_ip'] }}
+          private_ip: {{ servers['bdr1']['private_ip'] }}
+        bdr2:
+          ansible_host: {{ servers['bdr2']['public_ip'] }}
+          private_ip: {{ servers['bdr2']['private_ip'] }}
+        bdr3:
+          ansible_host: {{ servers['bdr3']['public_ip'] }}
+          private_ip: {{ servers['bdr3']['private_ip'] }}
+        bdr4:
+          ansible_host: {{ servers['bdr4']['public_ip'] }}
+          private_ip: {{ servers['bdr4']['private_ip'] }}
+    witness:
+      hosts:
+        witness1:
+          ansible_host: {{ servers['witness1']['public_ip'] }}
+          private_ip: {{ servers['witness1']['private_ip'] }}
+    barman:
+      hosts:
+        barman1:
+          ansible_host: {{ servers['barman1']['public_ip'] }}
+          private_ip: {{ servers['barman1']['private_ip'] }}
+        barman2:
+          ansible_host: {{ servers['barman2']['public_ip'] }}
+          private_ip: {{ servers['barman2']['private_ip'] }}
