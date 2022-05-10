@@ -1,0 +1,90 @@
+---
+- hosts: primary
+  name: Create file systems for PGDATA and PGWAL
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Install LVM
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop:
+        - lvm2
+      become: true
+
+    - name: Create Physical Volumes
+      ansible.builtin.command:
+        cmd: >-
+          pvcreate {{ item }} -f
+      loop:
+        - /dev/nvme1n1
+        - /dev/nvme2n1
+      become: true
+
+    - name: Create Volumes Groups
+      ansible.builtin.command:
+        cmd: >-
+          vgcreate {{ item.name }} {{ item.devices }} -f
+      loop:
+        - name: VGPGDATA
+          devices: "/dev/nvme1n1"
+        - name: VGPGWAL
+          devices: "/dev/nvme2n1"
+      become: true
+
+    - name: Create Logical Volumes
+      ansible.builtin.command:
+        cmd: >-
+          lvcreate --size 800G -n {{ item.lvname }} {{ item.vgname }} -y
+      loop:
+        - lvname: LVPGDATA
+          vgname: VGPGDATA
+        - lvname: LVPGWAL
+          vgname: VGPGWAL
+      become: true
+
+    - name: Format Logical Volumes
+      ansible.builtin.command:
+        cmd: >-
+          mkfs.xfs /dev/{{ item.vgname }}/{{ item.lvname }}
+      loop:
+        - lvname: LVPGDATA
+          vgname: VGPGDATA
+        - lvname: LVPGWAL
+          vgname: VGPGWAL
+      become: true
+
+    - name: Create mount points
+      ansible.builtin.command:
+        cmd: >-
+          mkdir -p {{ item }}
+      loop:
+        - /pgdata
+        - /pgwal
+      become: true
+
+    - name: Mount Logical Volumes
+      ansible.builtin.command:
+        cmd: >-
+          mount -t xfs -o noatime /dev/{{ item.vgname }}/{{ item.lvname }} {{ item.mountpoint }}
+      loop:
+        - lvname: LVPGDATA
+          vgname: VGPGDATA
+          mountpoint: /pgdata
+        - lvname: LVPGWAL
+          vgname: VGPGWAL
+          mountpoint: /pgwal
+      become: true
+
+    - name: Update /etc/fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/dev/{{ item.vgname }}/{{ item.lvname }} {{ item.mountpoint }} xfs noatime 0 0"
+      loop:
+        - lvname: LVPGDATA
+          vgname: VGPGDATA
+          mountpoint: /pgdata
+        - lvname: LVPGWAL
+          vgname: VGPGWAL
+          mountpoint: /pgwal
+      become: true

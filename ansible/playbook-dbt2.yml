@@ -1,0 +1,74 @@
+---
+- hosts: dbt2_client
+  name: Setup DBT2 client
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - setup_repo
+    - setup_dbt2_client
+
+  tasks:
+    - name: Install additional packages
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      loop:
+        - vim
+        - screen
+
+- hosts: dbt2_driver
+  name: Setup DBT2 driver
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - setup_repo
+    - setup_dbt2_driver
+
+  tasks:
+    - name: Send the rampup script (sync)
+      ansible.builtin.copy:
+        src: scripts/dbt2-driver-rampup-sync.py
+        dest: /home/dbt2/dbt2-driver-rampup-sync.py
+        owner: dbt2
+        force: true
+      become: true
+
+    - name: Send the rampup script (async)
+      ansible.builtin.copy:
+        src: scripts/dbt2-driver-rampup.py
+        dest: /home/dbt2/dbt2-driver-rampup.py
+        owner: dbt2
+        force: true
+      become: true
+
+    - name: Install additional packages
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      loop:
+        - vim
+        - python3
+        - python3-psycopg2
+        - screen
+
+
+- hosts: primary
+  name: Setup DBT2
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  roles:
+    - setup_dbt2

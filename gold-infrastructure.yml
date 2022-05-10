@@ -1,0 +1,240 @@
+cluster_name: BDR-Gold-Benchmark
+ssh_user: rocky
+regions:
+  us-east-1:
+    ami_id: ami-02628ddf3745c6dda
+    cidr_block: 10.0.0.0/16
+    azs:
+      us-east-1b: 10.0.0.0/24
+      us-east-1c: 10.0.1.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 30000
+        protocol: tcp
+        description: "DBT-2"
+      - port: 30000
+        protocol: udp
+        description: "DBT-2"
+      - port: 6432
+        protocol: tcp
+        description: "PgBouncer / Harp-proxy"
+      - port: 5442
+        protocol: tcp
+        description: "Harp"
+      - port: 2379
+        protocol: tcp
+        description: "etcd"
+      - port: 2380
+        protocol: tcp
+        description: "etcd"
+  us-east-2:
+    ami_id: ami-086586d173a744e81
+    cidr_block: 10.1.0.0/16
+    azs:
+      us-east-2a: 10.1.0.0/24
+      us-east-2b: 10.1.1.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 30000
+        protocol: tcp
+        description: "DBT-2"
+      - port: 30000
+        protocol: udp
+        description: "DBT-2"
+      - port: 6432
+        protocol: tcp
+        description: "PgBouncer / Harp-proxy"
+      - port: 5442
+        protocol: tcp
+        description: "Harp"
+      - port: 2379
+        protocol: tcp
+        description: "etcd"
+      - port: 2380
+        protocol: tcp
+        description: "etcd"
+  us-west-1:
+    ami_id: ami-0f91bc0c77f3dea4c
+    cidr_block: 10.2.0.0/16
+    azs:
+      us-west-1b: 10.2.0.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 5442
+        protocol: tcp
+        description: "Harp"
+      - port: 2379
+        protocol: tcp
+        description: "etcd"
+      - port: 2380
+        protocol: tcp
+        description: "etcd"
+machines:
+  bdr1:
+    type: bdr
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5d.12xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  bdr2:
+    type: bdr
+    region: us-east-1
+    az: us-east-1c
+    instance_type: c5d.12xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  bdr3:
+    type: bdr
+    region: us-east-2
+    az: us-east-2a
+    instance_type: c5d.12xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  bdr4:
+    type: bdr
+    region: us-east-2
+    az: us-east-2b
+    instance_type: c5d.12xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  witness1:
+    type: bdr-witness
+    region: us-west-1
+    az: us-west-1b
+    instance_type: c5.4xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+    additional_volumes:
+      - mount_point: /pgdata
+        size_gb: 50
+        type: io2
+        iops: 2000
+        encrypted: false
+      - mount_point: /pgwal
+        size_gb: 50
+        type: io2
+        iops: 2000
+        encrypted: false
+  proxy1:
+    type: harp-proxy
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  proxy2:
+    type: harp-proxy
+    region: us-east-1
+    az: us-east-1c
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  proxy3:
+    type: harp-proxy
+    region: us-east-2
+    az: us-east-2a
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  proxy4:
+    type: harp-proxy
+    region: us-east-2
+    az: us-east-2b
+    instance_type: c5.9xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  barman1:
+    type: barman
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+    additional_volumes:
+      - mount_point: /var/lib/barman
+        size_gb: 3000
+        type: io2
+        iops: 20000
+        encrypted: false
+  barman2:
+    type: barman
+    region: us-east-2
+    az: us-east-2a
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+    additional_volumes:
+      - mount_point: /var/lib/barman
+        size_gb: 3000
+        type: io2
+        iops: 20000
+        encrypted: false
+  dbt2-client:
+    type: dbt2-client
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  dbt2-driver:
+    type: dbt2-driver
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false

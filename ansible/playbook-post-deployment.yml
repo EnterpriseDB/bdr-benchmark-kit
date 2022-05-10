@@ -1,0 +1,107 @@
+---
+- hosts: primary
+  name: Apply post-deployment operations
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Make sure bdr1 is the leader
+      ansible.builtin.shell: |
+        /bin/harpctl promote bdr1
+      become: true
+      when: inventory_hostname == 'bdr1'
+
+    - name: Create BDR catchup time monitoring function
+      community.postgresql.postgresql_query:
+        query: >-
+          CREATE OR REPLACE FUNCTION bdr_monitor_repl_catchup_time() RETURNS TABLE (bdr_slot_name TEXT, catchup_time INTERVAL) AS
+          $$
+            DECLARE
+              start_time timestamp := clock_timestamp();
+              end_time JSONB := '{}';
+              lag_bytes BIGINT := 1;
+              total_lag BIGINT := 0;
+              current_lsn pg_lsn := pg_current_wal_lsn();
+              rec RECORD;
+              r RECORD;
+            BEGIN
+              WHILE lag_bytes <> 0
+              LOOP
+                total_lag := 0;
+                FOR rec IN SELECT slot_name,
+                           CASE
+                             WHEN (current_lsn - replay_lsn) > 0
+                             THEN (current_lsn - replay_lsn)
+                             ELSE 0
+                           END as lag_total
+                           FROM bdr.node_slots WHERE state = 'streaming'
+                LOOP
+                  total_lag := total_lag + rec.lag_total;
+                  IF rec.lag_total <= 0
+                  THEN
+                    IF end_time->>rec.slot_name IS NULL
+                    THEN
+                      end_time := end_time || jsonb_build_object(rec.slot_name, clock_timestamp());
+                      bdr_slot_name := rec.slot_name;
+                      catchup_time := (end_time->>rec.slot_name)::timestamp - start_time;
+                      RETURN NEXT;
+                    END IF;
+                  END IF;
+                END LOOP;
+                IF total_lag <= 0
+                THEN
+                  lag_bytes = 0;
+                ELSE
+                  -- 100ms nap time
+                  PERFORM pg_sleep(0.1);
+                END IF;
+              END LOOP;
+              RETURN;
+            END;
+          $$ LANGUAGE plpgsql;
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+
+    - name: Set wal_compression to off
+      community.postgresql.postgresql_query:
+        query: >-
+          ALTER SYSTEM SET wal_compression TO 'off'
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+        autocommit: true
+      become: true
+      become_user: "{{ postgres_user }}"
+
+    - name: Reload Postgres configuration
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT pg_reload_conf()
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        autocommit: true
+        db: "{{ bdr_dbname }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+
+    - name: Updating BDR writers configuration
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT bdr.alter_node_group_config('bdrdb_group', num_writers := {{ bdr_writers }}, enable_wal_decoder := {{ bdr_wal_decoder }})
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+        autocommit: true
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'

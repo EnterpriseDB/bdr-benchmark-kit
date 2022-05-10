@@ -1,0 +1,14 @@
+repo_username: <edb-yum-repo-username>
+repo_password: <edb-yum-repo-password>
+tpa_subscription_token: <tpa-subscription-token>
+tpa_bin_path: /usr/bin
+dbt2_warehouse: 5000
+pg_version: 14
+pg_type: EPAS
+postgres_user: enterprisedb
+postgres_group: enterprisedb
+pg_bin_path: /usr/edb/as14/bin
+bdr_writers: 6
+bdr_wal_decoder: false
+# /!\ DO NOT CHANGE bdr_dbname VALUE /!\
+bdr_dbname: edb

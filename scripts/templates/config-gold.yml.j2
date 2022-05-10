@@ -1,0 +1,180 @@
+---
+architecture: BDR-Always-ON
+cluster_name: {{ vars['cluster_name'] }}
+cluster_tags: {}
+
+cluster_vars:
+  bdr_database: edb
+  bdr_node_group: bdrgroup
+  bdr_version: '4'
+  failover_manager: harp
+  harp_request_timeout: '250ms'
+  harp_watch_poll_interval: '500ms'
+  harp_consensus_protocol: etcd
+  #default_harp_proxy_mode: pgbouncer
+  postgres_data_dir: /pgdata/pg_data
+  postgres_wal_dir: /pgwal/pg_wal
+  postgres_coredump_filter: '0xff'
+  postgres_version: '{{ configuration['pg_version'] }}'
+  postgresql_flavour: epas
+  postgres_user: {{ configuration['postgres_user'] }}
+  postgres_group: {{ configuration['postgres_group'] }}
+  postgres_conf_settings:
+    autovacuum_work_mem: '1GB'
+    checkpoint_completion_target: '0.93'
+    checkpoint_timeout: '30min'
+    cpu_tuple_cost: '0.03'
+    effective_cache_size: '110GB'
+    effective_io_concurrency: '200'
+    #logical_decoding_work_mem: '1GB'
+    maintenance_work_mem: '1GB'
+    max_parallel_maintenance_workers: '8'
+    max_connections: '150'
+    max_replication_slots: '40'
+    max_wal_size: '200GB'
+    min_wal_size: '1GB'
+    random_page_cost: '1.1'
+    shared_buffers: '16GB'
+    wal_compression: 'on'
+    wal_buffers: '64MB'
+    work_mem: '32MB'
+    max_parallel_workers_per_gather: '8'
+    shared_preload_libraries: "'pg_stat_statements, bdr'"
+    edb_dynatune: '100'
+    # BDR
+    bdr.max_writers_per_subscription: '16'
+    #bdr.writer_input_queue_size: '500MB'
+    #bdr.writer_output_queue_size: '500kB'
+    #bdr.global_lock_timeout: '0'
+    #bdr.global_lock_statement_timeout: '0'
+    # BDR logical decoding
+    bdr.default_streaming_mode: 'on'
+    bdr.receive_lcr: 'off'
+    bdr.enable_wal_decoder: 'off'
+    archive_mode: 'off'
+    max_worker_processes: '50'
+  pg_systemd_service_path: '/etc/systemd/system/postgres.service'
+  pg_systemd_alias: 'edb-as-14.service'
+  preferred_python_version: python3
+  repmgr_failover: manual
+  tpa_2q_repositories:
+  #- products/bdr4/release
+  #- products/harp/release
+  - ci-spool/bdr4/testing
+  - ci-spool/harp/testing
+  yum_repository_list:
+  - EDB
+  - EPEL
+  use_volatile_subscriptions: false
+  publications:
+  - type: bdr
+    database: edb
+    replication_sets:
+    - name: bdrgroup
+      autoadd_tables: false
+      replicate_delete: false
+      replicate_insert: false
+      replicate_truncate: false
+      replicate_update: false
+    - name: bdrdatagroup
+      autoadd_tables: true
+      replicate_delete: true
+      replicate_insert: true
+      replicate_truncate: true
+      replicate_update: true
+  bdr_extensions:
+    - btree_gist
+    - bdr
+
+ssh_key_file: {{ vars['ssh_priv_key'] }}
+
+locations:
+{% for region in vars['regions'].keys() %}
+- Name: {{ region }}
+{% endfor %}
+
+instance_defaults:
+  platform: bare
+  vars:
+    ansible_user: {{ vars['ssh_user'] }}
+
+instances:
+- Name: bdr1
+  node: 1
+  role:
+  - bdr
+  location: {{ servers['bdr1']['region'] }}
+  public_ip: {{ servers['bdr1']['public_ip'] }}
+  private_ip: {{ servers['bdr1']['private_ip'] }}
+  backup: barman1
+- Name: bdr2
+  node: 2
+  role:
+  - bdr
+  location: {{ servers['bdr2']['region'] }}
+  public_ip: {{ servers['bdr2']['public_ip'] }}
+  private_ip: {{ servers['bdr2']['private_ip'] }}
+- Name: bdr3
+  node: 3
+  role:
+  - bdr
+  location: {{ servers['bdr3']['region'] }}
+  public_ip: {{ servers['bdr3']['public_ip'] }}
+  private_ip: {{ servers['bdr3']['private_ip'] }}
+- Name: bdr4
+  node: 4
+  role:
+  - bdr
+  location: {{ servers['bdr4']['region'] }}
+  public_ip: {{ servers['bdr4']['public_ip'] }}
+  private_ip: {{ servers['bdr4']['private_ip'] }}
+- Name: witness1
+  node: 5
+  role:
+  - bdr
+  - witness
+  location: {{ servers['witness1']['region'] }}
+  public_ip: {{ servers['witness1']['public_ip'] }}
+  private_ip: {{ servers['witness1']['private_ip'] }}
+- Name: barman1
+  node: 6
+  role:
+  - barman
+  location: {{ servers['barman1']['region'] }}
+  public_ip: {{ servers['barman1']['public_ip'] }}
+  private_ip: {{ servers['barman1']['private_ip'] }}
+- Name: barman2
+  node: 7
+  role:
+  - barman
+  location: {{ servers['barman2']['region'] }}
+  public_ip: {{ servers['barman2']['public_ip'] }}
+  private_ip: {{ servers['barman2']['private_ip'] }}
+- Name: proxy1
+  node: 8
+  role:
+  - harp-proxy
+  location: {{ servers['proxy1']['region'] }}
+  public_ip: {{ servers['proxy1']['public_ip'] }}
+  private_ip: {{ servers['proxy1']['private_ip'] }}
+- Name: proxy2
+  node: 9
+  role:
+  - harp-proxy
+  location: {{ servers['proxy2']['region'] }}
+  public_ip: {{ servers['proxy2']['public_ip'] }}
+  private_ip: {{ servers['proxy2']['private_ip'] }}
+- Name: proxy3
+  node: 10
+  role:
+  - harp-proxy
+  location: {{ servers['proxy3']['region'] }}
+  public_ip: {{ servers['proxy3']['public_ip'] }}
+  private_ip: {{ servers['proxy3']['private_ip'] }}
+- Name: proxy4
+  node: 11
+  role:
+  - harp-proxy
+  location: {{ servers['proxy4']['region'] }}
+  public_ip: {{ servers['proxy4']['public_ip'] }}
+  private_ip: {{ servers['proxy4']['private_ip'] }}
