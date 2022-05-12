@@ -12,6 +12,7 @@
       ansible.builtin.shell: |
         /bin/harpctl promote bdr1
       become: true
+      become_user: "{{ postgres_user }}"
       when: inventory_hostname == 'bdr1'
 
     - name: Create BDR catchup time monitoring function
