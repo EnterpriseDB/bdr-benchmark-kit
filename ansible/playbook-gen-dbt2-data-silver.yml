@@ -108,6 +108,19 @@
       async: 180000
       poll: 60
 
+      # CHECKPOINT;
+    - name: Issuing CHECKPOINT on bdr1
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'
+
     - name: Create bdr extension
       community.postgresql.postgresql_ext:
         name: bdr
@@ -145,19 +158,6 @@
         port: 5444
         login_unix_socket: "{{ pg_login_unix_socket }}"
       become: true
-      become_user: "{{ postgres_user }}"
-      when: inventory_hostname == 'bdr1'
-
-      # CHECKPOINT;
-    - name: Issuing CHECKPOINT on bdr1
-      community.postgresql.postgresql_query:
-        autocommit: true
-        query: >-
-          CHECKPOINT
-        db: "{{ bdr_dbname }}"
-        login_user: "{{ postgres_user }}"
-        port: 5444
-        login_unix_socket: "{{ pg_login_unix_socket }}"
       become_user: "{{ postgres_user }}"
       when: inventory_hostname == 'bdr1'
 
