@@ -40,7 +40,7 @@ machines:
     type: bdr
     region: us-east-1
     az: us-east-1b
-    instance_type: c5d.metal
+    instance_type: c5d.12xlarge
     volume:
       type: gp2
       size_gb: 50
@@ -50,7 +50,7 @@ machines:
     type: bdr
     region: us-east-1
     az: us-east-1c
-    instance_type: c5d.metal
+    instance_type: c5d.12xlarge
     volume:
       type: gp2
       size_gb: 50
@@ -60,7 +60,7 @@ machines:
     type: bdr
     region: us-east-1
     az: us-east-1b
-    instance_type: c5d.metal
+    instance_type: c5d.12xlarge
     volume:
       type: gp2
       size_gb: 50
