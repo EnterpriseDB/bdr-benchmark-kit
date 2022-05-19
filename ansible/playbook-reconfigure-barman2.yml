@@ -1,0 +1,47 @@
+---
+- hosts: primary, barman
+  name: Reconfigure barman2
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Create barman replication slot on bdr3
+      community.postgresql.postgresql_query:
+        query: >-
+          SELECT pg_create_physical_replication_slot('backup_barman2');
+        db: "postgres"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr3'
+
+    - name: Cleaning up barman file systems
+      ansible.builtin.shell: |
+        rm -rf /var/lib/barman/bdr3/
+        rm -rf /var/lib/barman/.bdr3-*
+      become: true
+      when: inventory_hostname == 'barman2'
+
+    - name: Start barman cron
+      ansible.builtin.shell: |
+        barman cron
+      become: true
+      become_user: barman
+      when: inventory_hostname == 'barman2'
+
+    - name: Start a new backup of bdr3
+      ansible.builtin.shell: |
+         barman backup bdr3
+      become_user: barman
+      when: inventory_hostname == 'barman2'
+      retries: 20
+      delay: 10
+      register: result
+      until: result.rc == 0
+      async: 180000
+      poll: 60

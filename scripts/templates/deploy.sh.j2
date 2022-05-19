@@ -23,6 +23,7 @@ ${TPAEXEC_BIN_DIR}/tpaexec deploy .
 
 # DBT2 setup
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-dbt2.yml
+ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-ssh-dbt2.yml
 
 # Install edb_devops.edb_postgres collection
 ansible-galaxy collection install edb_devops.edb_postgres
@@ -30,3 +31,7 @@ ansible-galaxy collection install edb_devops.edb_postgres
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-gen-dbt2-data-{{ architecture }}.yml
 # Post-deployment
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-post-deployment.yml
+# Reconfigure barman2 node in the Gold architecture
+ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-reconfigure-barman2.yml
+# Failover/Swicthover script and database table creation
+ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-downtime-checker.yml

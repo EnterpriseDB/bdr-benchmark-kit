@@ -1,0 +1,80 @@
+- hosts: dbt2_client, dbt2_driver
+  name: SSH configuration on DBT2 nodes
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Copy SSH private key
+      ansible.builtin.copy:
+        src: ../ssh-id_rsa
+        dest: /home/dbt2/.ssh/id_rsa
+        mode: "0600"
+        owner: dbt2
+        force: true
+      become: true
+      become_user: dbt2
+
+    - name: Copy SSH public key
+      ansible.builtin.copy:
+        src: ../ssh-id_rsa.pub
+        dest: /home/dbt2/.ssh/id_rsa.pub
+        mode: "0600"
+        owner: dbt2
+        force: true
+      become: true
+      become_user: dbt2
+
+    - name: Add SSH pub key to authorized_keys
+      ansible.builtin.copy:
+        src: ../ssh-id_rsa.pub
+        dest: /home/dbt2/.ssh/authorized_keys
+        mode: "0600"
+        owner: dbt2
+        force: true
+      become: true
+      become_user: dbt2
+
+    - name: Run ssh-keyscan from dbt2-client
+      command: ssh-keyscan {{ hostvars['dbt2-driver']['private_ip'] }}
+      register: _ssh_keyscan_output
+      become: true
+      become_user: dbt2
+      changed_when: false
+      when: inventory_hostname == 'dbt2-client'
+
+    - name: Add dbt2 SSH fingerprint into dbt2-client known hosts
+      known_hosts:
+        path: /home/dbt2/.ssh/known_hosts
+        name: "{{ hostvars['dbt2-driver']['private_ip'] }}"
+        key: "{{ _item }}"
+      with_items: "{{ _ssh_keyscan_output.stdout_lines }}"
+      loop_control:
+        loop_var: _item
+      become: true
+      become_user: dbt2
+      changed_when: false
+      when: inventory_hostname == 'dbt2-client'
+
+    - name: Run ssh-keyscan from dbt2-driver
+      command: ssh-keyscan {{ hostvars['dbt2-client']['private_ip'] }}
+      register: _ssh_keyscan_output
+      become: true
+      become_user: dbt2
+      changed_when: false
+      when: inventory_hostname == 'dbt2-driver'
+
+    - name: Add dbt2 SSH fingerprint into dbt2-driver known hosts
+      known_hosts:
+        path: /home/dbt2/.ssh/known_hosts
+        name: "{{ hostvars['dbt2-client']['private_ip'] }}"
+        key: "{{ _item }}"
+      with_items: "{{ _ssh_keyscan_output.stdout_lines }}"
+      loop_control:
+        loop_var: _item
+      become: true
+      become_user: dbt2
+      changed_when: false
+      when: inventory_hostname == 'dbt2-driver'
