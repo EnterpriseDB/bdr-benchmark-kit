@@ -11,6 +11,8 @@ cluster_vars:
   harp_request_timeout: '250ms'
   harp_watch_poll_interval: '500ms'
   harp_consensus_protocol: etcd
+  harp_lease_refresh_interval: 1000
+  harp_leader_lease_duration: 2
   #default_harp_proxy_mode: pgbouncer
   postgres_data_dir: /pgdata/pg_data
   postgres_wal_dir: /pgwal/pg_wal
@@ -58,10 +60,8 @@ cluster_vars:
   preferred_python_version: python3
   repmgr_failover: manual
   tpa_2q_repositories:
-  #- products/bdr4/release
-  #- products/harp/release
-  - ci-spool/bdr4/testing
-  - ci-spool/harp/testing
+  - products/bdr4/release
+  - products/harp/release
   yum_repository_list:
   - EDB
   - EPEL

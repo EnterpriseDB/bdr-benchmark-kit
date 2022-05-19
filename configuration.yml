@@ -8,7 +8,7 @@ pg_type: EPAS
 postgres_user: enterprisedb
 postgres_group: enterprisedb
 pg_bin_path: /usr/edb/as14/bin
-bdr_writers: 6
+bdr_writers: 16
 bdr_wal_decoder: false
 # /!\ DO NOT CHANGE bdr_dbname VALUE /!\
 bdr_dbname: edb

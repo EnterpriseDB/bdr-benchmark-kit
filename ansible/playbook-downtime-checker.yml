@@ -1,0 +1,30 @@
+---
+- hosts: dbt2_driver
+  name: Copy downtime-checker.py
+  become: yes
+
+  tasks:
+    - name: Copy downtime-checker.py
+      ansible.builtin.copy:
+        src: scripts/downtime-checker.py
+        dest: /home/dbt2/downtime-checker.py
+        owner: dbt2
+        force: true
+      become: true
+
+- hosts: primary
+  name: Create the table used for downtime tracking
+  become: yes
+
+  tasks:
+    - name: Create the table used for downtime tracking
+      community.postgresql.postgresql_query:
+        query: >-
+          CREATE TABLE ping (bdr_node TEXT, timestamp TIMESTAMPTZ DEFAULT NOW());
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        db: "{{ bdr_dbname }}"
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'bdr1'

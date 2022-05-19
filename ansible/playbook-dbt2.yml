@@ -34,15 +34,7 @@
     - setup_dbt2_driver
 
   tasks:
-    - name: Send the rampup script (sync)
-      ansible.builtin.copy:
-        src: scripts/dbt2-driver-rampup-sync.py
-        dest: /home/dbt2/dbt2-driver-rampup-sync.py
-        owner: dbt2
-        force: true
-      become: true
-
-    - name: Send the rampup script (async)
+    - name: Send the rampup script
       ansible.builtin.copy:
         src: scripts/dbt2-driver-rampup.py
         dest: /home/dbt2/dbt2-driver-rampup.py

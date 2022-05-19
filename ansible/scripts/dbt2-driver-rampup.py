@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 
 def exec_driver(client, duration, warehouse, terminal):
@@ -54,10 +55,28 @@ def exec_driver(client, duration, warehouse, terminal):
     return notpm
 
 
+def start_dbt2_client(client, proxy, dbname, port, connections):
+    cmd = ' '.join([
+        'dbt2-client',
+        '-d', proxy,
+        '-c', str(connections),
+        '-l', str(port),
+        '-b', dbname, '-o', '/home/dbt2'
+    ])
+    p = subprocess.Popen(
+        'ssh %s \'%s\'' % (client, cmd),
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return p
+
+
 def checkpoint(conn):
     cur = conn.cursor()
     cur.execute("SELECT bdr.run_on_all_nodes('CHECKPOINT')");
     cur.close()
+
 
 def catchup_time(conn):
     records = []
@@ -70,6 +89,7 @@ def catchup_time(conn):
         records.append((r[0], r[1]))
     cur.close()
     return records
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -121,6 +141,33 @@ if __name__ == '__main__':
         help="Postgres connection string.",
         default='',
     )
+    parser.add_argument(
+        '--proxy', '-P',
+        dest='proxy',
+        type=str,
+        help="Harp proxy address.",
+    )
+    parser.add_argument(
+        '--connections', '-C',
+        dest='connections',
+        type=int,
+        help="Number of DBT2 client connections to Harp proxy. Default: %(default)s",
+        default=48,
+    )
+    parser.add_argument(
+        '--dbname', '-D',
+        dest='dbname',
+        default="edb",
+        type=str,
+        help="Database name. Default: %(default)s",
+    )
+    parser.add_argument(
+        '--port', '-p',
+        dest='port',
+        type=int,
+        help="Harp proxy port. Default: %(default)s",
+        default=6432,
+    )
     env = parser.parse_args()
 
     try:
@@ -128,6 +175,16 @@ if __name__ == '__main__':
         conn.set_session(autocommit=True)
     except psycopg2.Error as e:
         sys.exit("Unable to connect to the database")
+
+    # Starting dbt2-client
+    client = start_dbt2_client(
+        env.client, env.proxy, env.dbname, env.port, env.connections
+    )
+    # Waiting a moment before starting the driver process: we want to let a
+    # decent amount of time to the client to start all the required
+    # database connections.
+    time.sleep(60)
+
 
     i = 0
     for t in range(env.start_terminal, env.max_terminal, env.step):
@@ -160,3 +217,5 @@ if __name__ == '__main__':
             print(','.join(list(data.keys())))
         print(','.join([str(v) for _, v in data.items()]))
         i += 1
+
+    client.kill()
