@@ -367,3 +367,12 @@ reintegrated to the BDR cluster:
 ```shell
 $ sudo harpctl promote bdr1
 ```
+
+## Cloud resources destruction
+
+```shell
+$ cd ~/my_benchmark
+$ terraform destroy \
+    -var-file=./terraform_vars.json \
+    -auto-approve
+```
