@@ -19,7 +19,7 @@ ${TPAEXEC_BIN_DIR}/tpaexec provision .
 ./add_hosts.sh
 
 # Install edb_devops.edb_postgres collection
-ansible-galaxy collection install edb_devops.edb_postgres
+ansible-galaxy collection install edb_devops.edb_postgres:==3.11.0 --force
 
 # Setup PGDATA and PGWAL
 # When using 2 SSD devices: c5d.12xlarge and c5d.18xlarge)
