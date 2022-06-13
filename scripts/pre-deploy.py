@@ -107,25 +107,35 @@ if __name__ == '__main__':
     parser.add_argument(
         '--architecture', '-a',
         dest='architecture',
-        metavar='BDR_ARCHITECTURE',
-        choices=['gold', 'silver'],
+        metavar='ARCHITECTURE',
+        choices=['gold', 'silver', 'standalone'],
         default='silver',
-        help="Target BDR architecture. Default: %(default)s"
+        help="Target architecture. Default: %(default)s"
     )
     env = parser.parse_args()
 
     servers = load_yaml(env.project_path / 'servers.yml')
     configuration = load_yaml(env.configuration_path)
     vars = load_json(env.project_path / 'terraform_vars.json')
-    template(
-        'config-%s.yml.j2' % env.architecture,
-        env.project_path / 'config.yml',
-        dict(
-            servers=servers['servers'],
-            vars=vars,
-            configuration=configuration
+    if env.architecture in ['gold', 'silver']:
+        template(
+            'config-%s.yml.j2' % env.architecture,
+            env.project_path / 'config.yml',
+            dict(
+                servers=servers['servers'],
+                vars=vars,
+                configuration=configuration
+            )
         )
-    )
+    elif env.architecture == 'standalone':
+        template(
+            'playbook-%s.yml.j2' % env.architecture,
+            env.project_path / 'playbook.yml',
+            dict(
+                vars=vars,
+                configuration=configuration
+            )
+        )
     template(
         'inventory-%s.yml.j2' % env.architecture,
         env.project_path / 'inventory.yml',

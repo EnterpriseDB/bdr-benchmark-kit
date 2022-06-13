@@ -1,0 +1,58 @@
+---
+- hosts: primary
+  name: Generate DBT2 data on the BDR cluster
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+
+    - name: Copy the dbt2-pgsql-build-db script
+      ansible.builtin.copy:
+        src: scripts/dbt2-pgsql-build-db
+        dest: /home/dbt2/dbt2-pgsql-build-db
+        mode: '0755'
+        owner: dbt2
+        force: true
+      when: inventory_hostname == 'pg1'
+      become: true
+
+    - name: "DROP {{ bdr_dbname }} database"
+      community.postgresql.postgresql_db:
+        maintenance_db: postgres
+        state: absent
+        name: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+        force: true
+      become: true
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'pg1'
+
+
+    - name: Generate DBT-2 database
+      ansible.builtin.shell: |
+         export DBT2DBNAME={{ bdr_dbname }}
+         export PGHOST={{ pg_login_unix_socket }}
+         /home/dbt2/dbt2-pgsql-build-db -l 5444 -w {{ dbt2_warehouse }} -s plpgsql -j 6 -u > /tmp/dbt2-build-db.log \
+                2>> /tmp/dbt2-build-db.log && exit || exit 0
+      become_user: dbt2
+      when: inventory_hostname == 'pg1'
+      async: 180000
+      poll: 60
+
+      # CHECKPOINT;
+    - name: Issuing CHECKPOINT on pg1
+      community.postgresql.postgresql_query:
+        autocommit: true
+        query: >-
+          CHECKPOINT
+        db: "{{ bdr_dbname }}"
+        login_user: "{{ postgres_user }}"
+        port: 5444
+        login_unix_socket: "{{ pg_login_unix_socket }}"
+      become_user: "{{ postgres_user }}"
+      when: inventory_hostname == 'pg1'

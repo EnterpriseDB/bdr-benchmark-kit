@@ -1,0 +1,68 @@
+cluster_name: Single-Node-Benchmark
+ssh_user: rocky
+regions:
+  us-east-1:
+    ami_id: ami-02628ddf3745c6dda
+    cidr_block: 10.0.0.0/16
+    azs:
+      us-east-1b: 10.0.0.0/24
+    service_ports:
+      - port: 22
+        protocol: tcp
+        description: "SSH"
+      - port: 5444
+        protocol: tcp
+        description: "EPAS"
+      - port: 30000
+        protocol: tcp
+        description: "DBT-2"
+      - port: 30000
+        protocol: udp
+        description: "DBT-2"
+machines:
+  pg1:
+    type: primary
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5d.12xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  barman1:
+    type: barman
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.2xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+    additional_volumes:
+      - mount_point: /var/lib/barman
+        size_gb: 3000
+        type: io2
+        iops: 20000
+        encrypted: false
+  dbt2-client:
+    type: dbt2-client
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
+  dbt2-driver:
+    type: dbt2-driver
+    region: us-east-1
+    az: us-east-1b
+    instance_type: c5.18xlarge
+    volume:
+      type: gp2
+      size_gb: 50
+      iops: 5000
+      encrypted: false
