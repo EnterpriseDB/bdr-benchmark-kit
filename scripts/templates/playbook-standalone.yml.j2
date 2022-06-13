@@ -1,0 +1,80 @@
+---
+- hosts: all
+  name: Postgres deployment playbook
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  pre_tasks:
+    - name: Initialize the user defined variables
+      set_fact:
+        pg_version: 14
+        pg_type: "EPAS"
+        pg_data: "/pgdata/data"
+        pg_wal: "/pgwal/wal"
+        repo_username: "{{ configuration['repo_username'] }}"
+        repo_password: "{{ configuration['repo_password'] }}"
+        disable_logging: false
+        pg_postgres_conf_params:
+        - name: autovacuum_work_mem
+          value: "1GB"
+        - name: checkpoint_completion_target
+          value: "0.93"
+        - name: checkpoint_timeout
+          value: "30min"
+        - name: cpu_tuple_cost
+          value: "0.03"
+        - name: effective_cache_size
+          value: "110GB"
+        - name: effective_io_concurrency
+          value: "200"
+        - name: maintenance_work_mem
+          value: "1GB"
+        - name: max_parallel_maintenance_workers
+          value: "8"
+        - name: max_connections
+          value: "150"
+        - name: max_replication_slots
+          value: "80"
+        - name: max_wal_size
+          value: "200GB"
+        - name: min_wal_size
+          value: "1GB"
+        - name: random_page_cost
+          value: "1.1"
+        - name: shared_buffers
+          value: "16GB"
+        - name: wal_compression
+          value: "on"
+        - name: wal_buffers
+          value: "64MB"
+        - name: work_mem
+          value: "32MB"
+        - name: max_parallel_workers_per_gather
+          value: "8"
+        - name: shared_preload_libraries
+          value: "pg_stat_statements"
+        - name: edb_dynatune
+          value: "100"
+        - name: max_worker_processes
+          value: "80"
+        - name: archive_mode
+          value: "off"
+
+  roles:
+    - role: setup_repo
+      when: "'setup_repo' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: install_dbserver
+      when: "'install_dbserver' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: init_dbserver
+      when: "'init_dbserver' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: setup_barmanserver
+      when: "'setup_barmanserver' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: setup_barman
+      when: "'setup_barman' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: autotuning
+      when: "'autotuning' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"
+    - role: manage_dbserver
+      when: "'manage_dbserver' in lookup('edb_devops.edb_postgres.supported_roles', wantlist=True)"

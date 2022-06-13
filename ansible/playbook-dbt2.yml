@@ -42,6 +42,14 @@
         force: true
       become: true
 
+    - name: Send the rampup script (standalone edition)
+      ansible.builtin.copy:
+        src: scripts/dbt2-driver-rampup-standalone.py
+        dest: /home/dbt2/dbt2-driver-rampup-standalone.py
+        owner: dbt2
+        force: true
+      become: true
+
     - name: Install additional packages
       ansible.builtin.package:
         name: "{{ item }}"
@@ -53,6 +61,41 @@
         - python3-psycopg2
         - screen
 
+
+- hosts: primary
+  name: Install PGDG repo access
+  become: yes
+  gather_facts: yes
+
+  collections:
+    - edb_devops.edb_postgres
+
+  tasks:
+    - name: Download PGDG GPG key
+      rpm_key:
+        key: "http://yum.postgresql.org/RPM-GPG-KEY-PGDG"
+        state: present
+      when:
+        - inventory_hostname is match("pg.*")
+      become: true
+
+    - name: Install PG repo for RedHat 8
+      package:
+        name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+        state: present
+      become: true
+      when:
+        - inventory_hostname is match("pg.*")
+
+    - name: Add the module_hotfixes flag to the repository
+      ansible.builtin.lineinfile:
+        path: /etc/yum.repos.d/pgdg-redhat-all.repo
+        line: 'module_hotfixes=1'
+        insertafter: '\[pgdg{{ pg_version }}\]'
+        state: present
+      become: true
+      when:
+        - inventory_hostname is match("pg.*")
 
 - hosts: primary
   name: Setup DBT2

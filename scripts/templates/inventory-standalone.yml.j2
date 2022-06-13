@@ -1,0 +1,27 @@
+---
+all:
+  children:
+    dbt2_client:
+      hosts:
+        dbt2-client:
+          ansible_host: {{ servers['dbt2-client']['public_ip'] }}
+          private_ip: {{ servers['dbt2-client']['private_ip'] }}
+    dbt2_driver:
+      hosts:
+        dbt2-driver:
+          ansible_host: {{ servers['dbt2-driver']['public_ip'] }}
+          private_ip: {{ servers['dbt2-driver']['private_ip'] }}
+    primary:
+      hosts:
+        pg1:
+          ansible_host: {{ servers['pg1']['public_ip'] }}
+          private_ip: {{ servers['pg1']['private_ip'] }}
+          barman: true
+          barman_server_private_ip: {{ servers['barman1']['private_ip'] }}
+          barman_backup_method: postgres
+    barmanserver:
+      hosts:
+        barman1:
+          ansible_host: {{ servers['barman1']['public_ip'] }}
+          private_ip: {{ servers['barman1']['private_ip'] }}
+

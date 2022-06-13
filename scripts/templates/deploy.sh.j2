@@ -1,37 +1,52 @@
 #!/bin/bash -eux
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+{% if architecture in ['gold', 'silver'] %}
 TPAEXEC_BIN_DIR={{ configuration['tpa_bin_path'] }}
 
 export EDB_REPO_CREDENTIALS_FILE=${SCRIPT_DIR}/edb-repo-creds.txt
 export TPA_2Q_SUBSCRIPTION_TOKEN="{{ configuration['tpa_subscription_token'] }}"
+{% endif %}
 
 export ANSIBLE_PIPELINING='true'
 export ANSIBLE_SSH_PIPELINING='true'
 
+{% if architecture in ['gold', 'silver'] %}
 # TPexec provision & deploy
 ${TPAEXEC_BIN_DIR}/tpaexec relink .
 ${TPAEXEC_BIN_DIR}/tpaexec provision .
+{% endif %}
 ./add_hosts.sh
+
+# Install edb_devops.edb_postgres collection
+ansible-galaxy collection install edb_devops.edb_postgres
+
 # Setup PGDATA and PGWAL
 # When using 2 SSD devices: c5d.12xlarge and c5d.18xlarge)
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-setup-fs.yml
 # When using 4 SSD devices (3 in RAID0 for PGDATA, 1 for PGWAL): c5d.24xlarge and c5d.metal
 # ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-setup-fs-4-ssd.yml
 
+{% if architecture in ['gold', 'silver'] %}
+# Deploy using TPAexec
 ${TPAEXEC_BIN_DIR}/tpaexec deploy .
+{% elif architecture == 'standalone' %}
+# Deploy using edb-ansible
+ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./playbook.yml
+{% endif %}
 
 # DBT2 setup
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-dbt2.yml
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-ssh-dbt2.yml
 
-# Install edb_devops.edb_postgres collection
-ansible-galaxy collection install edb_devops.edb_postgres
 # Load DBT2 data
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-gen-dbt2-data-{{ architecture }}.yml
 # Post-deployment
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-post-deployment.yml
+
+{% if architecture in ['gold', 'silver'] %}
 # Reconfigure barman2 node in the Gold architecture
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-reconfigure-barman2.yml
 # Failover/Swicthover script and database table creation
 ansible-playbook -u {{ vars['ssh_user'] }} --key-file {{ vars['ssh_priv_key'] }} -i ./inventory.yml -e @./ansible_vars.json ./ansible/playbook-downtime-checker.yml
+{% endif %}

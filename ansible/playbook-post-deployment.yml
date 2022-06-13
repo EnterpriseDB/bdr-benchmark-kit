@@ -69,6 +69,7 @@
         db: "{{ bdr_dbname }}"
       become: true
       become_user: "{{ postgres_user }}"
+      when: inventory_hostname is match("bdr.*")
 
     - name: Set wal_compression to off
       community.postgresql.postgresql_query:
