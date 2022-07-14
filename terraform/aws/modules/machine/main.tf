@@ -1,4 +1,5 @@
-variable "aws_ami_id" {}
+variable "ami_name" {}
+variable "ami_owner" {}
 variable "machine" {}
 variable "vpc_id" {}
 variable "cidr_block" {}
@@ -19,6 +20,22 @@ terraform {
     }
   }
 }
+data "aws_ami" "default" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["${var.ami_name}-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["${var.ami_owner}"] # Rocky
+}
+
 
 data "aws_subnet" "selected" {
   vpc_id            = var.vpc_id
@@ -27,7 +44,7 @@ data "aws_subnet" "selected" {
 }
 
 resource "aws_instance" "machine" {
-  ami                    = var.aws_ami_id
+  ami                    = data.aws_ami.default.id
   instance_type          = var.machine.spec.instance_type
   key_name               = var.key_name
   subnet_id              = data.aws_subnet.selected.id
