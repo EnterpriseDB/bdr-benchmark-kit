@@ -57,3 +57,15 @@ variable "created_by" {
   description = "EDB terraform AWS"
   default     = "EDB terraform AWS"
 }
+
+variable "ami_name" {
+  type        = string
+  description = "AMI substring"
+  default     = "Rocky-8-ec2-8.6-20220515.0.x86_64-*"
+}
+
+variable "ami_owner" {
+  type        = string
+  description = "AMI owner"
+  default     = "679593333241"
+}
